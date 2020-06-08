@@ -80,7 +80,8 @@ def Master_FUNWAVE_run(inputDict):
             datadir = os.path.join(path_prefix, timeStamp)  # moving to the new simulation's folder
             pickleSaveFname = os.path.join(datadir, timeStamp + '_io.pickle')
 
-            print("estas en la linea 83 de run ")
+            print(inputDict)
+
             if generateFlag == True:
                 fIO = frontBackFUNWAVE.FunwaveSimSetup(timeSegment,rawWL,rawspec,bathy,inputDict=inputDict)
 

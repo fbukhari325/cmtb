@@ -39,6 +39,7 @@ def FunwaveSimSetup(startTime, rawWL, rawspec, bathy, inputDict):
     plotFlag = inputDict.get('plotFlag', True)
     # this raises error if not present (intended)
     version_prefix = inputDict['version_prefix'].lower()
+    print(version_prefix)
     path_prefix = inputDict['path_prefix']  # data super directory
     # ______________________________________________________________________________
     # here is where we set something that would handle 3D mode or time series mode,
