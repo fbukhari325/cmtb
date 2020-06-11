@@ -6,6 +6,7 @@ from prepdata import inputOutput
 from prepdata.prepDataLib import PrepDataTools as STPD
 from getdatatestbed.getDataFRF import getDataTestBed
 from getdatatestbed.getDataFRF import getObs
+from getdatatestbed import getDataFRF
 import datetime as DT
 import os, glob, makenc, pickle, tarfile
 import netCDF4 as nc
@@ -20,7 +21,7 @@ from plotting.operationalPlots import obs_V_mod_TS
 from testbedutils import geoprocess as gp
 import multiprocessing
 
-def FunwaveSimSetup(startTime, rawWL, rawspec, bathy, inputDict):
+def FunwaveSimSetup(startTime, inputDict):
     """This Function is the master call for the  data preparation for the Coastal Model
     Test Bed (CMTB) and the Swash wave/FLow model
 
@@ -38,10 +39,14 @@ def FunwaveSimSetup(startTime, rawWL, rawspec, bathy, inputDict):
     timerun = inputDict.get('simulationDuration', 1)
     plotFlag = inputDict.get('plotFlag', True)
     # this raises error if not present (intended)
-    version_prefix = inputDict['version_prefix'].lower()
-    print(version_prefix)
+    version_prefix = inputDict['modelSettings'].get('version_prefix', 'base').lower()
+
     path_prefix = inputDict['path_prefix']  # data super directory
     # ______________________________________________________________________________
+    # define version parameters
+    versionlist = ['base']  #, 'ts']
+    assert version_prefix.lower() in versionlist, 'Please check your version Prefix'
+
     # here is where we set something that would handle 3D mode or time series mode,
     # might set flags for preprocessing below
     fileHandling.checkVersionPrefix(model=model, inputDict=inputDict)
@@ -56,8 +61,14 @@ def FunwaveSimSetup(startTime, rawWL, rawspec, bathy, inputDict):
     print("Model Time Start : %s  Model Time End:  %s" % (d1, d2))
     print("OPERATIONAL files will be place in {} folder".format(os.path.join(path_prefix, date_str)))
 
+    #____________________Begin model data gathering_______________________________________________
+    go = getObs(d1, d2)  # initialize get observation class
+    prepdata = STPD.PrepDataTools()  # for preprocessing
+    gdTB = getDataTestBed(d1, d2)  # for bathy data gathering
+
     # _____________WAVES____________________________
     print('_________________\nGetting Wave Data')
+    rawspec = go.getWaveSpec(gaugenumber='8m-array')
     assert 'time' in rawspec, "\n++++\nThere's No Wave data between %s and %s \n++++\n" % (d1, d2)
     # preprocess wave spectra
     if version_prefix.lower() == 'base':
@@ -71,6 +82,8 @@ def FunwaveSimSetup(startTime, rawWL, rawspec, bathy, inputDict):
     print('_________________\nGetting Water Level Data')
     try:
         # get water level data
+        # get water level data
+        rawWL = go.getWL()
         # average WL
         WLpacket = prepdata.prep_WL(rawWL, wavepacket['epochtime'])
         #TODO: @Gaby check that the WL is prepared the same way for this model (are bathy's positive/negative?)
