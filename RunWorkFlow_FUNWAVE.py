@@ -5,8 +5,9 @@ import os, getopt, sys, shutil, glob, logging, yaml, time, pickle
 import datetime as DT
 from subprocess import check_output
 import numpy as np
-from frontback import frontBackFUNWAVE
-from getdatatestbed import getDataFRF
+from frontback.frontBackFUNWAVE import FunwaveSimSetup #from frontback import frontBackFUNWAVE's functions
+from frontback.frontBackFUNWAVE import FunwaveAnalyze
+#from getdatatestbed import getDataFRF
 from testbedutils import fileHandling
 
 
@@ -37,10 +38,17 @@ def Master_FUNWAVE_run(inputDict):
     prefixList = np.array(['base', 'ts'])
     assert (version_prefix.lower() == prefixList).any(), "Please enter a valid version prefix\n Prefix assigned = %s must be in List %s" % (version_prefix, prefixList)
 
+    # __________________input directories________________________________
+    codeDir = os.getcwd()  # location of code
+
     # ______________________ Logging  ____________________________
     # auto generated Log file using start_end timeSegment
     LOG_FILENAME = fileHandling.logFileLogic(outDataBase=path_prefix, version_prefix=version_prefix, startTime=startTime,
                                              endTime=endTime)
+
+    #LOG_FILENAME = os.path.join(path_prefix,
+     #                           'logs/{}_BatchRun_Log_{}_{}_{}.log'.format(model, version_prefix, startTime, endTime))
+
     # ____________________________________________________________
     # establishing the resolution of the input datetime
     try:
@@ -59,17 +67,17 @@ def Master_FUNWAVE_run(inputDict):
         dateStringList.append(dateStartList[-1].strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     errors, errorDates = [],[]
-    curdir = os.getcwd()
+
     # ______________________________decide process and run _____________________________
     fileHandling.displayStartInfo(projectStart, projectEnd, version_prefix, LOG_FILENAME, model)
     fileHandling.checkVersionPrefix(model, inputDict)
     # ______________________________Get data to run model  _____________________________
     # begin model data gathering
-    go = getDataFRF.getObs(projectStart, projectEnd)                  # initialize get observation class
-    gdTB = getDataFRF.getDataTestBed(projectStart, projectEnd)        # for bathy data gathering
-    rawspec = go.getWaveSpec(gaugenumber= '8m-array')
-    rawWL = go.getWL()
-    bathy = gdTB.getBathyIntegratedTransect(method=1, ybound=[940, 950])
+    #go = getDataFRF.getObs(projectStart, projectEnd)                  # initialize get observation class
+    #gdTB = getDataFRF.getDataTestBed(projectStart, projectEnd)        # for bathy data gathering
+    #rawspec = go.getWaveSpec(gaugenumber= '8m-array')
+    #rawWL = go.getWL()
+    #bathy = gdTB.getBathyIntegratedTransect(method=1, ybound=[940, 950])
 
     # _____________________________ RUN LOOP ___________________________________________
     
@@ -80,20 +88,19 @@ def Master_FUNWAVE_run(inputDict):
             datadir = os.path.join(path_prefix, timeStamp)  # moving to the new simulation's folder
             pickleSaveFname = os.path.join(datadir, timeStamp + '_io.pickle')
 
-            print(inputDict)
-
             if generateFlag == True:
-                fIO = frontBackFUNWAVE.FunwaveSimSetup(timeSegment,rawWL,rawspec,bathy,inputDict=inputDict)
+                #fIO = FunwaveSimSetup(timeSegment,rawWL,rawspec,bathy,inputDict=inputDict)
+                fIO = FunwaveSimSetup(timeSegment, inputDict=inputDict)
 
             if runFlag == True:        # run model
                 os.chdir(datadir)      # changing locations to where input files should be made
                 dt = time.time()
                 print('Running Simulation started with {} processors'.format(fIO.nprocess))
-                _ = check_output("mpirun -n {} {} INPUT".format(fIO.nprocess, os.path.join(curdir, inputDict[
+                _ = check_output("mpirun -n {} {} INPUT".format(fIO.nprocess, os.path.join(codeDir, inputDict[
                     'modelExecutable'])), shell=True)
                 fIO.simulationWallTime = time.time() - dt
                 print('Simulation took {:.1} seconds'.format(fIO.simulationWallTime))
-                os.chdir(curdir)
+                os.chdir(codeDir)
                 with open(pickleSaveFname, 'wb') as fid:
                     pickle.dump(fIO, fid, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -104,13 +111,13 @@ def Master_FUNWAVE_run(inputDict):
             if analyzeFlag == True:
                 print('**\nBegin Analyze Script %s ' % DT.datetime.now())
                 fIO.path_prefix = os.path.join(workingDir, model, version_prefix, timeStamp)
-                frontBackFUNWAVE.FunwaveAnalyze(timeSegment, inputDict, fIO)
+                FunwaveAnalyze(timeSegment, inputDict, fIO)
 
             if plotFlag is True and DT.date.today() == projectEnd:
                 print('  TODO tar simulation files after generating netCDF')
                 # move files
-                moveFnames = glob.glob(curdir + 'cmtb*.png')
-                moveFnames.extend(glob.glob(curdir + 'cmtb*.gif'))
+                moveFnames = glob.glob(codeDir + 'cmtb*.png')
+                moveFnames.extend(glob.glob(codeDir + 'cmtb*.gif'))
                 for file in moveFnames:
                     shutil.move(file,  '/mnt/gaia/cmtb')
                     print('moved %s ' % file)
@@ -120,7 +127,7 @@ def Master_FUNWAVE_run(inputDict):
             print('<< ERROR >> HAPPENED IN THIS TIME STEP ')
             print(e)
             logging.exception('\nERROR FOUND @ %s\n' %timeSegment, exc_info=True)
-            os.chdir(curdir)  # change back to main directory (no matter where the simulation failed)
+            os.chdir(codeDir)  # change back to main directory (no matter where the simulation failed)
 
 
 if __name__ == "__main__":
